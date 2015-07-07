@@ -119,6 +119,14 @@ class PyJWS(object):
 
         return payload
 
+    def get_unverified_header(self, jwt):
+        """Returns back the JWT header parameters as a dict()
+
+        Note: The signature is not verified so the header parameters
+        should not be fully trusted until signature verification is complete
+        """
+        return self._load(jwt)[2]
+
     def _load(self, jwt):
         if isinstance(jwt, text_type):
             jwt = jwt.encode('utf-8')
@@ -157,7 +165,7 @@ class PyJWS(object):
     def _verify_signature(self, payload, signing_input, header, signature,
                           key='', algorithms=None):
 
-        alg = header['alg']
+        alg = header.get('alg')
 
         if algorithms is not None and alg not in algorithms:
             raise InvalidAlgorithmError('The specified alg value is not allowed')
@@ -178,3 +186,4 @@ encode = _jws_global_obj.encode
 decode = _jws_global_obj.decode
 register_algorithm = _jws_global_obj.register_algorithm
 unregister_algorithm = _jws_global_obj.unregister_algorithm
+get_unverified_header = _jws_global_obj.get_unverified_header

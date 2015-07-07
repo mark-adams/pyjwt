@@ -186,11 +186,10 @@ class TestJWS:
         example_jws = (
             b'eyJhbGciOiJFUzM4NCIsInR5cCI6IkpXVCJ9'
             b'.eyJoZWxsbyI6IndvcmxkIn0'
-            b'.MIGHAkEdh2kR7IRu5w0tGuY6Xz3Vqa7PHHY2DgXWeee'
-            b'LXotEqpn9udp2NfVL-XFG0TDoCakzXbIGAWg42S69GFl'
-            b'KZzxhXAJCAPLPuJoKyAixFnXPBkvkti-UzSIj4s6DePe'
-            b'uTu7102G_QIXiijY5bx6mdmZa3xUuKeu-zobOIOqR8Zw'
-            b'FqGjBLZum')
+            b'.AGtlemKghaIaYh1yeeekFH9fRuNY7hCaw5hUgZ5aG1N'
+            b'2F8FIbiKLaZKr8SiFdTimXFVTEmxpBQ9sRmdsDsnrM-1'
+            b'HAG0_zxxu0JyINOFT2iqF3URYl9HZ8kZWMeZAtXmn6Cw'
+            b'PXRJD2f7N-f7bJ5JeL9VT5beI2XD3FlK3GgRvI-eE-2Ik')
         decoded_payload = jws.decode(example_jws, example_pubkey)
         json_payload = json.loads(ensure_unicode(decoded_payload))
 
@@ -270,6 +269,16 @@ class TestJWS:
             jws.decode(jws_message)
 
         assert 'Signature verification' in str(exc.value)
+
+    def test_verify_signature_with_no_algo_header_throws_exception(self, jws, payload):
+        example_jws = (
+            b'e30'
+            b'.eyJhIjo1fQ'
+            b'.KEh186CjVw_Q8FadjJcaVnE7hO5Z9nHBbU8TgbhHcBY'
+        )
+
+        with pytest.raises(InvalidAlgorithmError):
+            jws.decode(example_jws, 'secret')
 
     def test_invalid_crypto_alg(self, jws, payload):
         with pytest.raises(NotImplementedError):
@@ -355,6 +364,15 @@ class TestJWS:
     def test_decode_with_algo_none_and_verify_false_should_pass(self, jws, payload):
         jws_message = jws.encode(payload, key=None, algorithm=None)
         jws.decode(jws_message, verify=False)
+
+    def test_get_unverified_header_returns_header_values(self, jws, payload):
+        jws_message = jws.encode(payload, key='secret', algorithm='HS256',
+                                 headers={'kid': 123})
+
+        header = jws.get_unverified_header(jws_message)
+
+        assert 'kid' in header
+        assert header['kid'] == 123
 
     @pytest.mark.skipif(not has_crypto, reason='Not supported without cryptography library')
     def test_encode_decode_with_rsa_sha256(self, jws, payload):

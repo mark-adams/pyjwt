@@ -1,4 +1,5 @@
 import json
+import warnings
 
 from calendar import timegm
 from collections import Mapping
@@ -10,7 +11,7 @@ from .compat import string_types, timedelta_total_seconds
 from .exceptions import (
     DecodeError, ExpiredSignatureError, ImmatureSignatureError,
     InvalidAudienceError, InvalidIssuedAtError,
-    InvalidIssuerError
+    InvalidIssuerError, MissingRequiredClaimError
 )
 from .utils import merge_dict
 
@@ -26,7 +27,10 @@ class PyJWT(PyJWS):
             'verify_nbf': True,
             'verify_iat': True,
             'verify_aud': True,
-            'verify_iss': True
+            'verify_iss': True,
+            'require_exp': False,
+            'require_iat': False,
+            'require_nbf': False
         }
 
     def encode(self, payload, key, algorithm='HS256', headers=None,
@@ -68,17 +72,25 @@ class PyJWT(PyJWS):
 
         if verify:
             merged_options = merge_dict(self.options, options)
-            self._validate_claims(payload, options=merged_options, **kwargs)
+            self._validate_claims(payload, merged_options, **kwargs)
 
         return payload
 
-    def _validate_claims(self, payload, audience=None, issuer=None, leeway=0,
-                         options=None, **kwargs):
+    def _validate_claims(self, payload, options, audience=None, issuer=None,
+                         leeway=0, **kwargs):
+
+        if 'verify_expiration' in kwargs:
+            options['verify_exp'] = kwargs.get('verify_expiration', True)
+            warnings.warn('The verify_expiration parameter is deprecated. '
+                          'Please use options instead.', DeprecationWarning)
+
         if isinstance(leeway, timedelta):
             leeway = timedelta_total_seconds(leeway)
 
         if not isinstance(audience, (string_types, type(None))):
             raise TypeError('audience must be a string or None')
+
+        self._validate_required_claims(payload, options)
 
         now = timegm(datetime.utcnow().utctimetuple())
 
@@ -96,6 +108,16 @@ class PyJWT(PyJWS):
 
         if options.get('verify_aud'):
             self._validate_aud(payload, audience)
+
+    def _validate_required_claims(self, payload, options):
+        if options.get('require_exp') and payload.get('exp') is None:
+            raise MissingRequiredClaimError('exp')
+
+        if options.get('require_iat') and payload.get('iat') is None:
+            raise MissingRequiredClaimError('iat')
+
+        if options.get('require_nbf') and payload.get('nbf') is None:
+            raise MissingRequiredClaimError('nbf')
 
     def _validate_iat(self, payload, now, leeway):
         try:
@@ -133,7 +155,7 @@ class PyJWT(PyJWS):
         if audience is not None and 'aud' not in payload:
             # Application specified an audience, but it could not be
             # verified since the token does not contain a claim.
-            raise InvalidAudienceError('No audience claim in token')
+            raise MissingRequiredClaimError('aud')
 
         audience_claims = payload['aud']
 
@@ -151,7 +173,7 @@ class PyJWT(PyJWS):
             return
 
         if 'iss' not in payload:
-            raise InvalidIssuerError('Token does not contain an iss claim')
+            raise MissingRequiredClaimError('iss')
 
         if payload['iss'] != issuer:
             raise InvalidIssuerError('Invalid issuer')
@@ -162,3 +184,4 @@ encode = _jwt_global_obj.encode
 decode = _jwt_global_obj.decode
 register_algorithm = _jwt_global_obj.register_algorithm
 unregister_algorithm = _jwt_global_obj.unregister_algorithm
+get_unverified_header = _jwt_global_obj.get_unverified_header

@@ -4,6 +4,7 @@
 # PyJWT
 
 [![travis-status-image]][travis]
+[![appveyor-status-image]][appveyor]
 [![pypi-version-image]][pypi]
 [![coveralls-status-image]][coveralls]
 
@@ -25,7 +26,7 @@ using any of those algorithms, you'll need to install it as well.
 $ pip install cryptography
 ```
 
-If you're system doesn't allow installing `cryptography` like on Google App Engine, you can install `PyCrypto` for RSA signatures and `ecdsa` for ECDSA signatures.
+If your system doesn't allow installing `cryptography` like on Google App Engine, you can install `PyCrypto` for RSA signatures and `ecdsa` for ECDSA signatures.
 
 ## Usage
 
@@ -57,10 +58,12 @@ You can still get the payload by setting the `verify` argument to `False`.
 {u'some': u'payload'}
 ```
 
-The `decode()` function can raise other exceptions, e.g. for invalid issuer or
-audience (see below). All exceptions that signify that the token is invalid
-extend from the base `InvalidTokenError` exception class, so applications can
-use this approach to catch any issues relating to invalid tokens:
+## Validation
+Exceptions can be raised during `decode()` for other errors besides an
+invalid signature (e.g. for invalid issuer or audience (see below). All
+exceptions that signify that the token is invalid extend from the base
+`InvalidTokenError` exception class, so applications can use this approach to
+catch any issues relating to invalid tokens:
 
 ```python
 try:
@@ -69,8 +72,9 @@ except jwt.InvalidTokenError:
      pass  # do something sensible here, e.g. return HTTP 403 status code
 ```
 
-You may also override exception checking via an `options` dictionary.  The default
-options are as follows:
+### Skipping Claim Verification
+You may also override claim verification via the `options` dictionary.  The
+default options are:
 
 ```python
 options = {
@@ -78,25 +82,50 @@ options = {
    'verify_exp': True,
    'verify_nbf': True,
    'verify_iat': True,
-   'verify_aud`: True
+   'verify_aud': True
+   'require_exp': False,
+   'require_iat': False,
+   'require_nbf': False
 }
 ```
 
-You can skip individual checks by passing an `options` dictionary with certain keys set to `False`.
-For example, if you want to verify the signature of a JWT that has already expired.
+You can skip validation of individual claims by passing an `options` dictionary
+with the "verify_<claim_name>" key set to `False` when you call `jwt.decode()`.
+For example, if you want to verify the signature of a JWT that has already
+expired, you could do so by setting `verify_exp` to `False`.
 
 ```python
 >>> options = {
->>>    'verify_exp': True,
+>>>    'verify_exp': False,
 >>> }
 
+>>> encoded = '...' # JWT with an expired exp claim
 >>> jwt.decode(encoded, 'secret', options=options)
 {u'some': u'payload'}
 ```
 
-**NOTE**: *Changing the default behavior is done at your own risk, and almost certainly will make your
-application less secure.  Doing so should only be done with a very clear understanding of what you
-are doing.*
+**NOTE**: *Changing the default behavior is done at your own risk, and almost
+certainly will make your application less secure.  Doing so should only be done
+with a very clear understanding of what you are doing.*
+
+### Requiring Optional Claims
+In addition to skipping certain validations, you may also specify that certain
+optional claims are required by setting the appropriate `require_<claim_name>`
+option to True. If the claim is not present, PyJWT will raise a
+`jwt.exceptions.MissingRequiredClaimError`.
+
+For instance, the following code would require that the token has a 'exp'
+claim and raise an error if it is not present:
+
+```python
+>>> options = {
+>>>     'require_exp': True
+>>> }
+
+>>> encoded =  '...' # JWT without an exp claim
+>>> jwt.decode(encoded, 'secret', options=options)
+jwt.exceptions.MissingRequiredClaimError: Token is missing the "exp" claim
+```
 
 ## Tests
 
@@ -120,7 +149,7 @@ currently supports:
 * RS256 - RSASSA-PKCS1-v1_5 signature algorithm using SHA-256 hash algorithm
 * RS384 - RSASSA-PKCS1-v1_5 signature algorithm using SHA-384 hash algorithm
 * RS512 - RSASSA-PKCS1-v1_5 signature algorithm using SHA-512 hash algorithm
-* PS256 - RSASSA-PSS signature using SHA-256 and MGF1 padding with SHA-256  
+* PS256 - RSASSA-PSS signature using SHA-256 and MGF1 padding with SHA-256
 * PS384 - RSASSA-PSS signature using SHA-384 and MGF1 padding with SHA-384
 * PS512 - RSASSA-PSS signature using SHA-512 and MGF1 padding with SHA-512
 
@@ -210,8 +239,7 @@ Expiration time will be compared to the current UTC time (as given by
 `timegm(datetime.utcnow().utctimetuple())`), so be sure to use a UTC timestamp
 or datetime in encoding.
 
-You can turn off expiration time verification with the `verify_expiration`
-argument.
+You can turn off expiration time verification with the `verify_exp` parameter in the options argument.
 
 PyJWT also supports the leeway part of the expiration time definition, which
 means you can validate a expiration time which is in the past but not very far.
@@ -345,9 +373,11 @@ public_key = cert_obj.public_key()
 private_key = cert_obj.private_key()
 ```
 
-[travis-status-image]: https://secure.travis-ci.org/jpadilla/pyjwt.png?branch=master
+[travis-status-image]: https://secure.travis-ci.org/jpadilla/pyjwt.svg?branch=master
 [travis]: http://travis-ci.org/jpadilla/pyjwt?branch=master
-[pypi-version-image]: https://pypip.in/version/pyjwt/badge.svg
+[appveyor-status-image]: https://ci.appveyor.com/api/projects/status/h8nt70aqtwhht39t?svg=true
+[appveyor]: https://ci.appveyor.com/project/jpadilla/pyjwt
+[pypi-version-image]: https://img.shields.io/pypi/v/pyjwt.svg
 [pypi]: https://pypi.python.org/pypi/pyjwt
 [coveralls-status-image]: https://coveralls.io/repos/jpadilla/pyjwt/badge.svg?branch=master
 [coveralls]: https://coveralls.io/r/jpadilla/pyjwt?branch=master
